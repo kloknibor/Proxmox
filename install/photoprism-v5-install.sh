@@ -8,7 +8,6 @@
 if [ "$VERBOSE" = "yes" ]; then set -x; STD=""; else STD="silent"; fi
 silent() { "$@" > /dev/null 2>&1; }
 if [ "$DISABLEIPV6" == "yes" ]; then echo "net.ipv6.conf.all.disable_ipv6 = 1" >>/etc/sysctl.conf; $STD sysctl -p; fi
-AVX=$(grep -o -m1 'avx[^ ]*' /proc/cpuinfo)
 YW=$(echo "\033[33m")
 RD=$(echo "\033[01;31m")
 BL=$(echo "\033[36m")
@@ -48,6 +47,8 @@ function msg_error() {
 msg_info "Setting up Container OS "
 sed -i "/$LANG/ s/\(^# \)//" /etc/locale.gen
 locale-gen >/dev/null
+echo $tz > /etc/timezone
+ln -sf /usr/share/zoneinfo/$tz /etc/localtime
 for ((i=RETRY_NUM; i>0; i--)); do
   if [ "$(hostname -I)" != "" ]; then
     break
@@ -64,10 +65,11 @@ msg_ok "Set up Container OS"
 msg_ok "Network Connected: ${BL}$(hostname -I)"
 
 set +e
+trap - ERR
 if ping -c 1 -W 1 1.1.1.1 &> /dev/null; then msg_ok "Internet Connected"; else
   msg_error "Internet NOT Connected"
     read -r -p "Would you like to continue anyway? <y/N> " prompt
-    if [[ $prompt == "y" || $prompt == "Y" || $prompt == "yes" || $prompt == "Yes" ]]; then
+    if [[ "${prompt,,}" =~ ^(y|yes)$ ]]; then
       echo -e " ⚠️  ${RD}Expect Issues Without Internet${CL}"
     else
       echo -e " 🖧  Check Network Settings"
@@ -77,6 +79,7 @@ fi
 RESOLVEDIP=$(getent hosts github.com | awk '{ print $1 }')
 if [[ -z "$RESOLVEDIP" ]]; then msg_error "DNS Lookup Failure"; else msg_ok "DNS Resolved github.com to ${BL}$RESOLVEDIP${CL}"; fi
 set -e
+trap 'error_handler $LINENO "$BASH_COMMAND"' ERR
 
 msg_info "Updating Container OS"
 $STD apt-get update
@@ -106,10 +109,15 @@ msg_info "Installing Node.js"
 $STD apt-get -y install nodejs
 msg_ok "Installed Node.js"
 
-msg_info "Installing Golang (Patience)"
-$STD wget https://golang.org/dl/go1.19.3.linux-amd64.tar.gz
-$STD tar -xzf go1.19.3.linux-amd64.tar.gz -C /usr/local
+msg_info "Installing Golang"
+set +o pipefail
+RELEASE=$(curl -s https://go.dev/dl/ | grep -o "go.*\linux-amd64.tar.gz" | head -n 1)
+wget -q https://golang.org/dl/$RELEASE
+$STD tar -xzf $RELEASE -C /usr/local
 $STD ln -s /usr/local/go/bin/go /usr/local/bin/go
+msg_ok "Installed Golang"
+
+msg_info "Installing Go Dependencies"
 $STD go install github.com/tianon/gosu@latest
 $STD go install golang.org/x/tools/cmd/goimports@latest
 $STD go install github.com/psampaz/go-mod-outdated@latest
@@ -121,20 +129,21 @@ cp /usr/local/go/bin/richgo /usr/local/bin/richgo
 cp /usr/local/go/bin/gosu /usr/local/sbin/gosu
 chown root:root /usr/local/sbin/gosu
 chmod 755 /usr/local/sbin/gosu
-msg_ok "Installed Golang"
+msg_ok "Installed Go Dependencies"
 
 msg_info "Installing Tensorflow"
-if [[ "$AVX" =~ avx2 ]]; then
- $STD wget https://dl.photoprism.org/tensorflow/linux/libtensorflow-linux-avx2-1.15.2.tar.gz
- $STD tar -C /usr/local -xzf libtensorflow-linux-avx2-1.15.2.tar.gz
-elif [[ "$AVX" =~ avx ]]; then
- $STD wget https://dl.photoprism.org/tensorflow/linux/libtensorflow-linux-avx-1.15.2.tar.gz
- $STD tar -C /usr/local -xzf libtensorflow-linux-avx-1.15.2.tar.gz
+if grep -q avx2 /proc/cpuinfo; then
+  suffix="avx2-"
+elif grep -q avx /proc/cpuinfo; then
+  suffix="avx-"
 else
- $STD wget https://dl.photoprism.org/tensorflow/linux/libtensorflow-linux-cpu-1.15.2.tar.gz
- $STD tar -C /usr/local -xzf libtensorflow-linux-cpu-1.15.2.tar.gz
+  suffix="1"
 fi
-$STD ldconfig
+version=$(curl -s https://dl.photoprism.org/tensorflow/amd64/ | grep -o "libtensorflow-amd64-$suffix.*\\.tar.gz" | head -n 1)
+wget -q https://dl.photoprism.org/tensorflow/amd64/$version
+tar -C /usr/local -xzf $version
+ldconfig
+set -o pipefail
 msg_ok "Installed Tensorflow"
 
 msg_info "Cloning PhotoPrism"
@@ -205,12 +214,10 @@ $STD apt-get autoremove
 $STD apt-get autoclean
 rm -rf /var/{cache,log}/* \
   /photoprism \
-  /go1.19.3.linux-amd64.tar.gz \
-  /libtensorflow-linux-avx2-1.15.2.tar.gz \
-  /libtensorflow-linux-avx-1.15.2.tar.gz \
-  /libtensorflow-linux-cpu-1.15.2.tar.gz
+  /$RELEASE \
+  /$version
 msg_ok "Cleaned"
 
 msg_info "Starting PhotoPrism"
-$STD systemctl enable --now photoprism
+systemctl enable -q --now photoprism
 msg_ok "Started PhotoPrism"

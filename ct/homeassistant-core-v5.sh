@@ -27,7 +27,8 @@ var_os="debian"
 var_version="11"
 NSAPP=$(echo ${APP,,} | tr -d ' ')
 var_install="${NSAPP}-v5-install"
-INTEGER='^[0-9]+$'
+timezone=$(cat /etc/timezone)
+INTEGER='^[0-9]+([.][0-9]+)?$'
 YW=$(echo "\033[33m")
 BL=$(echo "\033[36m")
 RD=$(echo "\033[01;31m")
@@ -124,186 +125,216 @@ function default_settings() {
   echo -e "${BL}Creating a ${APP} LXC using the above default settings${CL}"
 }
 
+function exit-script() {
+    clear
+    echo -e "⚠  User exited script \n"
+    exit
+}
+
 function advanced_settings() {
-  CT_TYPE=$(whiptail --title "CONTAINER TYPE" --radiolist --cancel-button Exit-Script "Choose Type" 10 58 2 \
+if CT_TYPE=$(whiptail --title "CONTAINER TYPE" --radiolist "Choose Type" 10 58 2 \
     "1" "Unprivileged" ON \
     "0" "Privileged" OFF \
-    3>&1 1>&2 2>&3)
-  exitstatus=$?
-  if [ $exitstatus = 0 ]; then
+    3>&1 1>&2 2>&3); then
     echo -e "${DGN}Using Container Type: ${BGN}$CT_TYPE${CL}"
-  fi
-  PW1=$(whiptail --inputbox "Set Root Password (needed for root ssh access)" 8 58 --title "PASSWORD(leave blank for automatic login)" --cancel-button Exit-Script 3>&1 1>&2 2>&3)
-  exitstatus=$?
-  if [ $exitstatus = 0 ]; then
+else
+    exit-script
+fi
+
+if PW1=$(whiptail --inputbox "\nSet Root Password (needed for root ssh access)" 9 58 --title "PASSWORD(leave blank for automatic login)" 3>&1 1>&2 2>&3); then
     if [ -z $PW1 ]; then
-      PW1="Automatic Login" PW=" "
-      echo -e "${DGN}Using Root Password: ${BGN}$PW1${CL}"
+        PW1="Automatic Login"
+        PW=" "
     else
-      PW="-password $PW1"
-      echo -e "${DGN}Using Root Password: ${BGN}$PW1${CL}"
+        PW="-password $PW1"
     fi
-  fi
-  CT_ID=$(whiptail --inputbox "Set Container ID" 8 58 $NEXTID --title "CONTAINER ID" --cancel-button Exit-Script 3>&1 1>&2 2>&3)
-  exitstatus=$?
-  if [ -z $CT_ID ]; then
-    CT_ID="$NEXTID"
-    echo -e "${DGN}Container ID: ${BGN}$CT_ID${CL}"
-  else
-    if [ $exitstatus = 0 ]; then echo -e "${DGN}Using Container ID: ${BGN}$CT_ID${CL}"; fi
-  fi
-  CT_NAME=$(whiptail --inputbox "Set Hostname" 8 58 $NSAPP --title "HOSTNAME" --cancel-button Exit-Script 3>&1 1>&2 2>&3)
-  exitstatus=$?
-  if [ -z $CT_NAME ]; then
-    HN="$NSAPP"
+    echo -e "${DGN}Using Root Password: ${BGN}$PW1${CL}"
+else
+    exit-script
+fi
+
+if CT_ID=$(whiptail --inputbox "Set Container ID" 8 58 $NEXTID --title "CONTAINER ID" 3>&1 1>&2 2>&3); then
+    if [ -z "$CT_ID" ]; then
+        CT_ID="$NEXTID"
+        echo -e "${DGN}Using Container ID: ${BGN}$CT_ID${CL}"
+    else
+        echo -e "${DGN}Container ID: ${BGN}$CT_ID${CL}"
+    fi
+else
+    exit
+fi
+
+if CT_NAME=$(whiptail --inputbox "Set Hostname" 8 58 $NSAPP --title "HOSTNAME" 3>&1 1>&2 2>&3); then
+    if [ -z "$CT_NAME" ]; then
+        HN="$NSAPP"
+    else
+        HN=$(echo ${CT_NAME,,} | tr -d ' ')
+    fi
     echo -e "${DGN}Using Hostname: ${BGN}$HN${CL}"
-  else
-    if [ $exitstatus = 0 ]; then
-      HN=$(echo ${CT_NAME,,} | tr -d ' ')
-      echo -e "${DGN}Using Hostname: ${BGN}$HN${CL}"
+else
+    exit-script
+fi
+
+if DISK_SIZE=$(whiptail --inputbox "Set Disk Size in GB" 8 58 $var_disk --title "DISK SIZE" 3>&1 1>&2 2>&3); then
+    if [ -z "$DISK_SIZE" ]; then
+        DISK_SIZE="$var_disk"
+        echo -e "${DGN}Using Disk Size: ${BGN}$DISK_SIZE${CL}"
+        else
+        if ! [[ $DISK_SIZE =~ $INTEGER ]]; then
+          echo -e "${RD}⚠ DISK SIZE MUST BE AN INTEGER NUMBER!${CL}"
+          advanced_settings
+        fi
+        echo -e "${DGN}Using Disk Size: ${BGN}$DISK_SIZE${CL}"
     fi
-  fi
-  DISK_SIZE=$(whiptail --inputbox "Set Disk Size in GB" 8 58 $var_disk --title "DISK SIZE" --cancel-button Exit-Script 3>&1 1>&2 2>&3)
-  exitstatus=$?
-  if [ -z $DISK_SIZE ]; then
-    DISK_SIZE="$var_disk"
-    echo -e "${DGN}Using Disk Size: ${BGN}$DISK_SIZE${CL}"
-  else
-    if [ $exitstatus = 0 ]; then echo -e "${DGN}Using Disk Size: ${BGN}$DISK_SIZE${CL}"; fi
-    if ! [[ $DISK_SIZE =~ $INTEGER ]]; then
-      echo -e "${RD}⚠ DISK SIZE MUST BE A INTEGER NUMBER!${CL}"
-      advanced_settings
+else
+    exit-script
+fi
+
+if CORE_COUNT=$(whiptail --inputbox "Allocate CPU Cores" 8 58 $var_cpu --title "CORE COUNT" 3>&1 1>&2 2>&3); then
+    if [ -z "$CORE_COUNT" ]; then
+        CORE_COUNT="$var_cpu"
+        echo -e "${DGN}Allocated Cores: ${BGN}$CORE_COUNT${CL}"
+    else
+        echo -e "${DGN}Allocated Cores: ${BGN}$CORE_COUNT${CL}"
     fi
-  fi
-  CORE_COUNT=$(whiptail --inputbox "Allocate CPU Cores" 8 58 $var_cpu --title "CORE COUNT" --cancel-button Exit-Script 3>&1 1>&2 2>&3)
-  exitstatus=$?
-  if [ -z $CORE_COUNT ]; then
-    CORE_COUNT="$var_cpu"
-    echo -e "${DGN}Allocated Cores: ${BGN}$CORE_COUNT${CL}"
-  else
-    if [ $exitstatus = 0 ]; then echo -e "${DGN}Allocated Cores: ${BGN}$CORE_COUNT${CL}"; fi
-  fi
-  RAM_SIZE=$(whiptail --inputbox "Allocate RAM in MiB" 8 58 $var_ram --title "RAM" --cancel-button Exit-Script 3>&1 1>&2 2>&3)
-  exitstatus=$?
-  if [ -z $RAM_SIZE ]; then
-    RAM_SIZE="$var_ram"
-    echo -e "${DGN}Allocated RAM: ${BGN}$RAM_SIZE${CL}"
-  else
-    if [ $exitstatus = 0 ]; then echo -e "${DGN}Allocated RAM: ${BGN}$RAM_SIZE${CL}"; fi
-  fi
-  BRG=$(whiptail --inputbox "Set a Bridge" 8 58 vmbr0 --title "BRIDGE" --cancel-button Exit-Script 3>&1 1>&2 2>&3)
-  exitstatus=$?
-  if [ -z $BRG ]; then
-    BRG="vmbr0"
-    echo -e "${DGN}Using Bridge: ${BGN}$BRG${CL}"
-  else
-    if [ $exitstatus = 0 ]; then echo -e "${DGN}Using Bridge: ${BGN}$BRG${CL}"; fi
-  fi
-  NET=$(whiptail --inputbox "Set a Static IPv4 CIDR Address(/24)" 8 58 dhcp --title "IP ADDRESS" --cancel-button Exit-Script 3>&1 1>&2 2>&3)
-  exitstatus=$?
-  if [ -z $NET ]; then
-    NET="dhcp"
-    echo -e "${DGN}Using IP Address: ${BGN}$NET${CL}"
-  else
-    if [ $exitstatus = 0 ]; then echo -e "${DGN}Using IP Address: ${BGN}$NET${CL}"; fi
-  fi
-  GATE1=$(whiptail --inputbox "Set a Gateway IP (mandatory if Static IP was used)" 8 58 --title "GATEWAY IP" --cancel-button Exit-Script 3>&1 1>&2 2>&3)
-  exitstatus=$?
-  if [ $exitstatus = 0 ]; then
+else
+    exit-script
+fi
+
+if RAM_SIZE=$(whiptail --inputbox "Allocate RAM in MiB" 8 58 $var_ram --title "RAM" 3>&1 1>&2 2>&3); then
+    if [ -z "$RAM_SIZE" ]; then
+        RAM_SIZE="$var_ram"
+        echo -e "${DGN}Allocated RAM: ${BGN}$RAM_SIZE${CL}"
+    else
+        echo -e "${DGN}Allocated RAM: ${BGN}$RAM_SIZE${CL}"
+    fi
+else
+    exit-script
+fi
+
+if BRG=$(whiptail --inputbox "Set a Bridge" 8 58 vmbr0 --title "BRIDGE" 3>&1 1>&2 2>&3); then
+    if [ -z "$BRG" ]; then
+        BRG="vmbr0"
+        echo -e "${DGN}Using Bridge: ${BGN}$BRG${CL}"
+    else
+        echo -e "${DGN}Using Bridge: ${BGN}$BRG${CL}"
+    fi
+else
+    exit-script
+fi
+
+if NET=$(whiptail --inputbox "Set a Static IPv4 CIDR Address(/24)" 8 58 dhcp --title "IP ADDRESS" 3>&1 1>&2 2>&3); then
+    if [ -z $NET ]; then
+        NET="dhcp"
+        echo -e "${DGN}Using IP Address: ${BGN}$NET${CL}"
+    else
+        echo -e "${DGN}Using IP Address: ${BGN}$NET${CL}"
+    fi
+else
+    exit-script
+fi
+if GATE1=$(whiptail --inputbox "Set a Gateway IP (mandatory if Static IP was used)" 8 58 --title "GATEWAY IP" 3>&1 1>&2 2>&3); then
     if [ -z $GATE1 ]; then
-      GATE1="Default" GATE=""
-      echo -e "${DGN}Using Gateway IP Address: ${BGN}$GATE1${CL}"
+        GATE1="Default"
+        GATE=""
     else
-      GATE=",gw=$GATE1"
-      echo -e "${DGN}Using Gateway IP Address: ${BGN}$GATE1${CL}"
+        GATE=",gw=$GATE1"
     fi
-  fi
-  if (whiptail --defaultno --title "IPv6" --yesno "Disable IPv6?" 10 58); then
-      echo -e "${DGN}Disable IPv6: ${BGN}Yes${CL}"
-      DISABLEIP6="yes"
-  else
-      echo -e "${DGN}Disable IPv6: ${BGN}No${CL}"
-      DISABLEIP6="no"
-  fi
-  MTU1=$(whiptail --inputbox "Set Interface MTU Size (leave blank for default)" 8 58 --title "MTU SIZE" --cancel-button Exit-Script 3>&1 1>&2 2>&3)
-  exitstatus=$?
-  if [ $exitstatus = 0 ]; then
+        echo -e "${DGN}Using Gateway IP Address: ${BGN}$GATE1${CL}"
+else
+    exit-script
+fi
+
+if (whiptail --defaultno --title "IPv6" --yesno "Disable IPv6?" 10 58); then
+    DISABLEIP6="yes"
+else
+    DISABLEIP6="no"
+fi
+    echo -e "${DGN}Disable IPv6: ${BGN}$DISABLEIP6${CL}"
+
+if MTU1=$(whiptail --inputbox "Set Interface MTU Size (leave blank for default)" 8 58 --title "MTU SIZE" 3>&1 1>&2 2>&3); then
     if [ -z $MTU1 ]; then
-      MTU1="Default" MTU=""
-      echo -e "${DGN}Using Interface MTU Size: ${BGN}$MTU1${CL}"
+        MTU1="Default"
+        MTU=""
     else
-      MTU=",mtu=$MTU1"
-      echo -e "${DGN}Using Interface MTU Size: ${BGN}$MTU1${CL}"
+        MTU=",mtu=$MTU1"
     fi
-  fi
-  SD=$(whiptail --inputbox "Set a DNS Search Domain (leave blank for HOST)" 8 58 --title "DNS Search Domain" --cancel-button Exit-Script 3>&1 1>&2 2>&3)
-  exitstatus=$?
-  if [ $exitstatus = 0 ]; then
+        echo -e "${DGN}Using Interface MTU Size: ${BGN}$MTU1${CL}"
+else
+    exit-script
+fi
+
+if SD=$(whiptail --inputbox "Set a DNS Search Domain (leave blank for HOST)" 8 58 --title "DNS Search Domain" 3>&1 1>&2 2>&3); then
     if [ -z $SD ]; then
-      SD=""
-      echo -e "${DGN}Using DNS Search Domain: ${BGN}Host${CL}"
+        SX=Host
+        SD=""
     else
-      SX=$SD
-      SD="-searchdomain=$SD"
-      echo -e "${DGN}Using DNS Search Domain: ${BGN}$SX${CL}"
+        SX=$SD
+        SD="-searchdomain=$SD"
     fi
-  fi
-  NS=$(whiptail --inputbox "Set a DNS Server IP (leave blank for HOST)" 8 58 --title "DNS SERVER IP" --cancel-button Exit-Script 3>&1 1>&2 2>&3)
-  exitstatus=$?
-  if [ $exitstatus = 0 ]; then
-    if [ -z $NS ]; then
-      NS=""
-      echo -e "${DGN}Using DNS Server IP Address: ${BGN}Host${CL}"
+        echo -e "${DGN}Using DNS Search Domain: ${BGN}$SX${CL}"
+else
+    exit-script
+fi
+
+if NX=$(whiptail --inputbox "Set a DNS Server IP (leave blank for HOST)" 8 58 --title "DNS SERVER IP" 3>&1 1>&2 2>&3); then
+    if [ -z $NX ]; then
+        NX=Host    
+        NS=""
     else
-      NX=$NS
-      NS="-nameserver=$NS"
-      echo -e "${DGN}Using DNS Server IP Address: ${BGN}$NX${CL}"
+        NS="-nameserver=$NX"
     fi
-  fi
-  MAC1=$(whiptail --inputbox "Set a MAC Address(leave blank for default)" 8 58 --title "MAC ADDRESS" --cancel-button Exit-Script 3>&1 1>&2 2>&3)
-  exitstatus=$?
-  if [ $exitstatus = 0 ]; then
+        echo -e "${DGN}Using DNS Server IP Address: ${BGN}$NX${CL}"
+else
+    exit-script
+fi
+
+if MAC1=$(whiptail --inputbox "Set a MAC Address(leave blank for default)" 8 58 --title "MAC ADDRESS" 3>&1 1>&2 2>&3); then
     if [ -z $MAC1 ]; then
-      MAC1="Default" MAC=""
-      echo -e "${DGN}Using MAC Address: ${BGN}$MAC1${CL}"
+        MAC1="Default"
+        MAC=""
     else
-      MAC=",hwaddr=$MAC1"
-      echo -e "${DGN}Using MAC Address: ${BGN}$MAC1${CL}"
+        MAC=",hwaddr=$MAC1"
+        echo -e "${DGN}Using MAC Address: ${BGN}$MAC1${CL}"
     fi
-  fi
-  VLAN1=$(whiptail --inputbox "Set a Vlan(leave blank for default)" 8 58 --title "VLAN" --cancel-button Exit-Script 3>&1 1>&2 2>&3)
-  exitstatus=$?
-  if [ $exitstatus = 0 ]; then
+else
+    exit-script
+fi
+
+if VLAN1=$(whiptail --inputbox "Set a Vlan(leave blank for default)" 8 58 --title "VLAN" 3>&1 1>&2 2>&3); then
     if [ -z $VLAN1 ]; then
-      VLAN1="Default" VLAN=""
-      echo -e "${DGN}Using Vlan: ${BGN}$VLAN1${CL}"
+        VLAN1="Default"
+        VLAN=""
     else
-      VLAN=",tag=$VLAN1"
-      echo -e "${DGN}Using Vlan: ${BGN}$VLAN1${CL}"
+        VLAN=",tag=$VLAN1"
     fi
-  fi
-  if (whiptail --defaultno --title "SSH ACCESS" --yesno "Enable Root SSH Access?" 10 58); then
-      echo -e "${DGN}Enable Root SSH Access: ${BGN}Yes${CL}"
-      SSH="yes"
-  else
-      echo -e "${DGN}Enable Root SSH Access: ${BGN}No${CL}"
-      SSH="no"
-  fi
-  if (whiptail --defaultno --title "VERBOSE MODE" --yesno "Enable Verbose Mode?" 10 58); then
-      echo -e "${DGN}Enable Verbose Mode: ${BGN}Yes${CL}"
-      VERB="yes"
-  else
-      echo -e "${DGN}Enable Verbose Mode: ${BGN}No${CL}"
-      VERB="no"
-  fi
-  if (whiptail --title "ADVANCED SETTINGS COMPLETE" --yesno "Ready to create ${APP} LXC?" --no-button Do-Over 10 58); then
+        echo -e "${DGN}Using Vlan: ${BGN}$VLAN1${CL}"
+else
+    exit-script
+fi
+
+if (whiptail --defaultno --title "SSH ACCESS" --yesno "Enable Root SSH Access?" 10 58); then
+    SSH="yes"
+else
+    SSH="no"
+fi
+    echo -e "${DGN}Enable Root SSH Access: ${BGN}$SSH${CL}"
+
+if (whiptail --defaultno --title "VERBOSE MODE" --yesno "Enable Verbose Mode?" 10 58); then
+    VERB="yes"
+else
+    VERB="no"
+fi
+    echo -e "${DGN}Enable Verbose Mode: ${BGN}$VERB${CL}"
+
+if (whiptail --title "ADVANCED SETTINGS COMPLETE" --yesno "Ready to create ${APP} LXC?" 10 58); then
     echo -e "${RD}Creating a ${APP} LXC using the above advanced settings${CL}"
-  else
+else
     clear
     header_info
     echo -e "${RD}Using Advanced Settings${CL}"
     advanced_settings
-  fi
+fi
 }
 
 function install_script() {
@@ -325,10 +356,11 @@ header_info
 function update_script() {
    PY=$(ls /srv/homeassistant/lib/)
    IP=$(hostname -I | awk '{print $1}') 
-  UPD=$(whiptail --title "UPDATE" --radiolist --cancel-button Exit-Script "Spacebar = Select" 11 58 3 \
+  UPD=$(whiptail --title "UPDATE" --radiolist --cancel-button Exit-Script "Spacebar = Select" 11 58 4 \
   "1" "Update Core" ON \
   "2" "Install HACS" OFF \
   "3" "Install FileBrowser" OFF \
+  "4" "Install/Update AppDaemon" OFF \
   3>&1 1>&2 2>&3)
 header_info
 if [ "$UPD" == "1" ]; then  
@@ -400,6 +432,78 @@ echo -e "FileBrowser should be reachable by going to the following URL.
          ${BL}http://$IP:8080${CL}   admin|changeme\n"
 exit
 fi
+if [ "$UPD" == "4" ]; then
+  clear
+  header_info
+  if [[ ! -d /srv/appdaemon ]]; then
+    msg_info "Installing AppDaemon"
+    mkdir /srv/appdaemon
+    cd /srv/appdaemon
+    python3 -m venv .
+    source bin/activate
+    pip install appdaemon &>/dev/null
+    mkdir -p /root/.homeassistant/appdaemon/apps
+    cat > /root/.homeassistant/appdaemon/appdaemon.yaml << EOF
+# Sample appdaemon.yml file
+# For configuration, please visit: https://appdaemon.readthedocs.io/en/latest/CONFIGURE.html
+appdaemon:
+  time_zone: CET
+  latitude: 51.725
+  longitude: 14.3434
+  elevation: 0
+  plugins:
+    HASS:
+      type: hass
+      ha_url: <home_assistant_base_url>
+      token: <some_long_lived_access_token>
+http:
+    url: http://127.0.0.1:5050
+admin:
+api:
+EOF
+    msg_ok "Installed AppDaemon"
+
+    msg_info "Creating Service"
+    cat > /etc/systemd/system/appdaemon.service << EOF
+[Unit]
+Description=AppDaemon
+After=homeassistant.service
+Requires=homeassistant.service
+[Service]
+Type=simple
+WorkingDirectory=/root/.homeassistant/appdaemon
+ExecStart=/srv/appdaemon/bin/appdaemon -c "/root/.homeassistant/appdaemon"
+RestartForceExitStatus=100
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl enable --now appdaemon &>/dev/null
+    msg_ok "Created Service"
+
+    msg_ok "Completed Successfully!\n"
+    echo -e "AppDaemon should be reachable by going to the following URL.
+            ${BL}http://$IP:5050${CL}\n"
+    exit
+  else
+    msg_info "Upgrading AppDaemon"
+    msg_info "Stopping AppDaemon"
+    systemctl stop appdaemon 
+    msg_ok "Stopped AppDaemon"
+
+    msg_info "Updating AppDaemon"
+    source /srv/appdaemon/bin/activate 
+    pip install --upgrade appdaemon &>/dev/null
+    msg_ok "Updated AppDaemon"
+
+    msg_info "Starting AppDaemon"
+    systemctl start appdaemon
+    sleep 2
+    msg_ok "Started AppDaemon"
+    msg_ok "Update Successful"
+    echo -e "\n  Go to http://${IP}:5050 \n"
+    exit
+  fi
+fi
 }
 
 if command -v pveversion >/dev/null 2>&1; then
@@ -432,7 +536,8 @@ else
   FEATURES="nesting=1"
 fi
 TEMP_DIR=$(mktemp -d)
-pushd $TEMP_DIR >/dev/null
+pushd $TEMP_DIR >/dev/null 
+export tz=$timezone
 export DISABLEIPV6=$DISABLEIP6
 export APPLICATION=$APP
 export VERBOSE=$VERB

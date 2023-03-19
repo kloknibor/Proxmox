@@ -28,7 +28,8 @@ var_os="rockylinux"
 var_version="9"
 NSAPP=$(echo ${APP,,} | tr -d ' ')
 var_install="${NSAPP}-v5-install"
-INTEGER='^[0-9]+$'
+timezone=$(cat /etc/timezone)
+INTEGER='^[0-9]+([.][0-9]+)?$'
 YW=$(echo "\033[33m")
 BL=$(echo "\033[36m")
 RD=$(echo "\033[01;31m")
@@ -122,6 +123,13 @@ function default_settings() {
   VERB="no"
   echo -e "${BL}Creating a ${APP} LXC using the above default settings${CL}"
 }
+
+function exit-script() {
+    clear
+    echo -e "⚠  User exited script \n"
+    exit
+}
+
 function advanced_settings() {
   CT_TYPE=$(whiptail --title "CONTAINER TYPE" --radiolist --cancel-button Exit-Script "Choose Type" 10 58 2 \
     "1" "Unprivileged" ON \
@@ -303,6 +311,7 @@ function advanced_settings() {
     advanced_settings
   fi
 }
+
 function install_script() {
 ARCH_CHECK
 PVE_CHECK
@@ -358,7 +367,8 @@ else
   FEATURES="nesting=1"
 fi
 TEMP_DIR=$(mktemp -d)
-pushd $TEMP_DIR >/dev/null
+pushd $TEMP_DIR >/dev/null 
+export tz=$timezone
 export DISABLEIPV6=$DISABLEIP6
 export APPLICATION=$APP
 export VERBOSE=$VERB

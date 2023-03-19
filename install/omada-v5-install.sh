@@ -47,6 +47,8 @@ function msg_error() {
 msg_info "Setting up Container OS "
 sed -i "/$LANG/ s/\(^# \)//" /etc/locale.gen
 locale-gen >/dev/null
+echo $tz > /etc/timezone
+ln -sf /usr/share/zoneinfo/$tz /etc/localtime
 for ((i=RETRY_NUM; i>0; i--)); do
   if [ "$(hostname -I)" != "" ]; then
     break
@@ -63,10 +65,11 @@ msg_ok "Set up Container OS"
 msg_ok "Network Connected: ${BL}$(hostname -I)"
 
 set +e
+trap - ERR
 if ping -c 1 -W 1 1.1.1.1 &> /dev/null; then msg_ok "Internet Connected"; else
   msg_error "Internet NOT Connected"
     read -r -p "Would you like to continue anyway? <y/N> " prompt
-    if [[ $prompt == "y" || $prompt == "Y" || $prompt == "yes" || $prompt == "Yes" ]]; then
+    if [[ "${prompt,,}" =~ ^(y|yes)$ ]]; then
       echo -e " ⚠️  ${RD}Expect Issues Without Internet${CL}"
     else
       echo -e " 🖧  Check Network Settings"
@@ -76,6 +79,7 @@ fi
 RESOLVEDIP=$(getent hosts github.com | awk '{ print $1 }')
 if [[ -z "$RESOLVEDIP" ]]; then msg_error "DNS Lookup Failure"; else msg_ok "DNS Resolved github.com to ${BL}$RESOLVEDIP${CL}"; fi
 set -e
+trap 'error_handler $LINENO "$BASH_COMMAND"' ERR
 
 msg_info "Updating Container OS"
 $STD apt-get update
@@ -93,9 +97,9 @@ wget -qL https://repo.mongodb.org/apt/ubuntu/dists/bionic/mongodb-org/3.6/multiv
 $STD dpkg -i mongodb-org-server_3.6.23_amd64.deb
 msg_ok "Installed Dependencies"
 
-msg_info "Installing Omada Controller v5.8.4"
-wget -qL https://static.tp-link.com/upload/software/2023/202301/20230130/Omada_SDN_Controller_v5.8.4_Linux_x64.deb
-$STD dpkg -i Omada_SDN_Controller_v5.8.4_Linux_x64.deb
+msg_info "Installing Omada Controller v5.9.9"
+wget -qL https://static.tp-link.com/upload/software/2023/202302/20230227/Omada_SDN_Controller_v5.9.9_Linux_x64.deb
+$STD dpkg -i Omada_SDN_Controller_v5.9.9_Linux_x64.deb
 msg_ok "Installed Omada Controller"
 
 echo "export TERM='xterm-256color'" >>/root/.bashrc
@@ -117,7 +121,7 @@ fi
 if [[ "${SSH_ROOT}" == "yes" ]]; then sed -i "s/#PermitRootLogin prohibit-password/PermitRootLogin yes/g" /etc/ssh/sshd_config; systemctl restart sshd; fi
 
 msg_info "Cleaning up"
-rm -rf Omada_SDN_Controller_v5.8.4_Linux_x64.deb mongodb-org-server_3.6.23_amd64.deb
+rm -rf Omada_SDN_Controller_v5.9.9_Linux_x64.deb mongodb-org-server_3.6.23_amd64.deb
 $STD apt-get autoremove
 $STD apt-get autoclean
 msg_ok "Cleaned"

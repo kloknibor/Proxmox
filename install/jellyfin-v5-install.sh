@@ -47,6 +47,8 @@ function msg_error() {
 msg_info "Setting up Container OS "
 sed -i "/$LANG/ s/\(^# \)//" /etc/locale.gen
 locale-gen >/dev/null
+echo $tz > /etc/timezone
+ln -sf /usr/share/zoneinfo/$tz /etc/localtime
 for ((i=RETRY_NUM; i>0; i--)); do
   if [ "$(hostname -I)" != "" ]; then
     break
@@ -63,10 +65,11 @@ msg_ok "Set up Container OS"
 msg_ok "Network Connected: ${BL}$(hostname -I)"
 
 set +e
+trap - ERR
 if ping -c 1 -W 1 1.1.1.1 &> /dev/null; then msg_ok "Internet Connected"; else
   msg_error "Internet NOT Connected"
     read -r -p "Would you like to continue anyway? <y/N> " prompt
-    if [[ $prompt == "y" || $prompt == "Y" || $prompt == "yes" || $prompt == "Yes" ]]; then
+    if [[ "${prompt,,}" =~ ^(y|yes)$ ]]; then
       echo -e " ⚠️  ${RD}Expect Issues Without Internet${CL}"
     else
       echo -e " 🖧  Check Network Settings"
@@ -76,6 +79,7 @@ fi
 RESOLVEDIP=$(getent hosts github.com | awk '{ print $1 }')
 if [[ -z "$RESOLVEDIP" ]]; then msg_error "DNS Lookup Failure"; else msg_ok "DNS Resolved github.com to ${BL}$RESOLVEDIP${CL}"; fi
 set -e
+trap 'error_handler $LINENO "$BASH_COMMAND"' ERR
 
 msg_info "Updating Container OS"
 $STD apt-get update
@@ -95,7 +99,11 @@ if [[ -z "$(grep -w "100000" /proc/self/uid_map)" ]]; then
   $STD apt-get -y install \
     va-driver-all \
     ocl-icd-libopencl1
-  if [[ ${PCT_OSVERSION} == "20.04" ]]; then $STD apt-get -y install beignet-opencl-icd; fi
+  if [[ ${PCT_OSVERSION} == "20.04" ]]; then 
+  $STD apt-get install -y beignet-opencl-icd
+  else
+  $STD apt-get install -y intel-opencl-icd
+  fi
   /bin/chgrp video /dev/dri
   /bin/chmod 755 /dev/dri
   /bin/chmod 660 /dev/dri/*

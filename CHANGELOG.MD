@@ -1,7 +1,64 @@
 <a href="https://tteck.github.io/Proxmox/"><img src="https://github-readme-stats-git-masterrstaa-rickstaa.vercel.app/api?username=tteck&theme=blue-green" height="130"/></a>
-
 # Change Log
 All notable changes to this project will be documented in this file.
+
+## 2023-03-18
+
+### Changed
+
+- **Alpine-AdGuard Home LXC** (Thanks @nicedevil007)
+  - NEW Script
+- **Alpine-Docker LXC**
+  - NEW Script
+- **Alpine-Zigbee2MQTT LXC**
+  - NEW Script
+
+## 2023-03-15
+
+### Changed
+
+- **Alpine-Grafana LXC** (Thanks @nicedevil007)
+  - NEW Script
+
+## 2023-03-10
+
+### Changed
+
+- **Proxmox LXC Updater** 
+  - You can use the command line to exclude multiple containers simultaneously.
+
+## 2023-03-08
+
+### Changed
+
+- **Proxmox CPU Scaling Governor**
+  - Menu options dynamically based on the available scaling governors.
+
+## 2023-03-07
+
+### Changed
+
+- **Alpine-Vaultwarden LXC**
+  - NEW Script
+- **All LXC Scripts**
+  - Retrieve the time zone from Proxmox and configure the container to use the same time zone
+
+## 2023-02-24
+
+### Changed
+
+- **qBittorrent LXC** (Thanks @romka777)
+  - NEW Script
+- **Jackett LXC** (Thanks @romka777)
+  - NEW Script
+
+## 2023-02-23
+
+### Changed
+
+- **Proxmox LXC Updater** 
+  - Skip all templates, allowing for the starting, updating, and shutting down of containers to be resumed automatically.
+  - Exclude an additional container by adding the CTID at the end of the shell command ( -s 103).
 
 ## 2023-02-16
 

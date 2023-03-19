@@ -47,6 +47,8 @@ function msg_error() {
 msg_info "Setting up Container OS "
 sed -i "/$LANG/ s/\(^# \)//" /etc/locale.gen
 locale-gen >/dev/null
+echo $tz > /etc/timezone
+ln -sf /usr/share/zoneinfo/$tz /etc/localtime
 for ((i=RETRY_NUM; i>0; i--)); do
   if [ "$(hostname -I)" != "" ]; then
     break
@@ -63,10 +65,11 @@ msg_ok "Set up Container OS"
 msg_ok "Network Connected: ${BL}$(hostname -I)"
 
 set +e
+trap - ERR
 if ping -c 1 -W 1 1.1.1.1 &> /dev/null; then msg_ok "Internet Connected"; else
   msg_error "Internet NOT Connected"
     read -r -p "Would you like to continue anyway? <y/N> " prompt
-    if [[ $prompt == "y" || $prompt == "Y" || $prompt == "yes" || $prompt == "Yes" ]]; then
+    if [[ "${prompt,,}" =~ ^(y|yes)$ ]]; then
       echo -e " ⚠️  ${RD}Expect Issues Without Internet${CL}"
     else
       echo -e " 🖧  Check Network Settings"
@@ -76,6 +79,7 @@ fi
 RESOLVEDIP=$(getent hosts github.com | awk '{ print $1 }')
 if [[ -z "$RESOLVEDIP" ]]; then msg_error "DNS Lookup Failure"; else msg_ok "DNS Resolved github.com to ${BL}$RESOLVEDIP${CL}"; fi
 set -e
+trap 'error_handler $LINENO "$BASH_COMMAND"' ERR
 
 msg_info "Updating Container OS"
 $STD apt-get update
@@ -154,6 +158,7 @@ cd /opt/paperless
 sed -i -e 's|-e git+https://github.com/paperless-ngx/django-q.git|git+https://github.com/paperless-ngx/django-q.git|' /opt/paperless/requirements.txt
 $STD pip install --upgrade pip
 $STD pip install -r requirements.txt
+curl -s -o /opt/paperless/paperless.conf https://raw.githubusercontent.com/paperless-ngx/paperless-ngx/main/paperless.conf.example
 msg_ok "Installed Paperless-ngx"
 
 msg_info "Installing Natural Language Toolkit (Patience)"
