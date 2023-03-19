@@ -92,6 +92,12 @@ $STD apt-get install -y mc
 $STD apt-get install -y sqlite3
 msg_ok "Installed Dependencies"
 
+msg_info "Creating radarr user and group 998r"
+$STD useradd -u 998 radarr
+$STD groupadd -g 998 media
+$STD usermod -a -G media radarr
+msg_info "Finished creating radarr user and group"
+
 msg_info "Installing Radarr"
 mkdir -p /var/lib/radarr/
 chmod 775 /var/lib/radarr/
@@ -107,6 +113,8 @@ cat <<EOF >/etc/systemd/system/radarr.service
 Description=Radarr Daemon
 After=syslog.target network.target
 [Service]
+User=radarr
+Group=media
 UMask=0002
 Type=simple
 ExecStart=/opt/Radarr/Radarr -nobrowser -data=/var/lib/radarr/
