@@ -93,8 +93,8 @@ $STD apt-get install -y sqlite3
 msg_ok "Installed Dependencies"
 
 msg_info "Creating radarr user and group 998r"
-$STD groupadd -g 998 radarr
-$STD useradd -u 998 -g 998 radarr
+$STD groupadd -g 6969 radarr
+$STD useradd -u 6969 -g 6969 radarr
 msg_info "Finished creating radarr user and group"
 
 msg_info "Installing Radarr"
@@ -113,7 +113,7 @@ Description=Radarr Daemon
 After=syslog.target network.target
 [Service]
 User=radarr
-Group=media
+group=radarr
 UMask=0002
 Type=simple
 ExecStart=/opt/Radarr/Radarr -nobrowser -data=/var/lib/radarr/
