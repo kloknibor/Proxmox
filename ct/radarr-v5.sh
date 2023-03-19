@@ -413,6 +413,17 @@ export PCT_OPTIONS="
   $PW
 "
 bash -c "$(wget -qLO - https://raw.githubusercontent.com/tteck/Proxmox/main/ct/create_lxc.sh)" || exit
+
+LXC_CONFIG=/etc/pve/lxc/${CTID}.conf
+cat <<EOF >>$LXC_CONFIG
+lxc.idmap: u 0 100000 6969
+lxc.idmap: g 0 100000 6969
+lxc.idmap: u 6969 6969 1
+lxc.idmap: g 6969 6969 1
+lxc.idmap: u 6970 106970 58566
+lxc.idmap: g 6970 106970 58566
+EOF
+
 msg_info "Starting LXC Container"
 pct start $CTID
 msg_ok "Started LXC Container"
