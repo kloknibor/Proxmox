@@ -93,9 +93,8 @@ $STD apt-get install -y sqlite3
 msg_ok "Installed Dependencies"
 
 msg_info "Creating radarr user and group 998r"
-$STD useradd -u 998 radarr
-$STD groupadd -g 998 media
-$STD usermod -a -G media radarr
+$STD groupadd -g 998 radarr
+$STD useradd -u 998 -g 998 radarr
 msg_info "Finished creating radarr user and group"
 
 msg_info "Installing Radarr"
